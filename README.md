@@ -27,6 +27,7 @@
 - Foreground 서비스
 - 위치 정보
 
+## 📝아두이노 코드
 ```
 #include <SoftwareSerial.h>
 
