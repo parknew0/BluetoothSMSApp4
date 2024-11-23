@@ -27,6 +27,44 @@
 - Foreground 서비스
 - 위치 정보
 
+'''
+#include <SoftwareSerial.h>
+
+// HC-06 모듈 연결 설정 (RX, TX)
+SoftwareSerial bluetooth(0, 1); // RX=0, TX=1
+
+const int buttonPin = 2;  // 버튼을 디지털 2번 핀에 연결
+boolean lastButton = HIGH;  // 버튼의 이전 상태
+boolean currentButton = HIGH;  // 버튼의 현재 상태
+
+void setup() {
+  // 버튼 핀을 입력으로 설정하고 내부 풀업 저항 사용
+  pinMode(buttonPin, INPUT_PULLUP);
+  
+  // 블루투스 통신 시작 (HC-06 기본 통신속도는 9600)
+  bluetooth.begin(9600);
+  // 시리얼 모니터링을 위한 설정
+  Serial.begin(9600);
+}
+
+void loop() {
+  // 버튼 상태 읽기
+  currentButton = digitalRead(buttonPin);
+
+  // 버튼이 눌렸을 때 (LOW -> HIGH)
+  if(lastButton == HIGH && currentButton == LOW) {
+    Serial.println("1");
+    // 블루투스로 '1' 전송
+    bluetooth.println("1");
+    delay(50);  // 디바운싱
+  }
+
+  // 현재 버튼 상태를 이전 상태로 저장
+  lastButton = currentButton;
+}
+'''
+
+
 ## 💻 설치 방법
 1. 프로젝트를 클론합니다
 2. Android Studio에서 프로젝트를 엽니다
