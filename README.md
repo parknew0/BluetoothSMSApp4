@@ -27,7 +27,7 @@
 - Foreground 서비스
 - 위치 정보
 
-'''
+```
 #include <SoftwareSerial.h>
 
 // HC-06 모듈 연결 설정 (RX, TX)
@@ -62,7 +62,7 @@ void loop() {
   // 현재 버튼 상태를 이전 상태로 저장
   lastButton = currentButton;
 }
-'''
+```
 
 
 ## 💻 설치 방법
