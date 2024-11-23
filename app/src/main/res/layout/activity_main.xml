@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/statusTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="연결 상태: 연결 시도 중..."
+        android:textSize="16sp"
+        android:textAlignment="center"
+        android:padding="8dp"
+        android:background="#E0E0E0"
+        android:layout_marginBottom="16dp"/>
+
+    <EditText
+        android:id="@+id/phoneNumberEditText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="전화번호 입력 (-없이 입력)"
+        android:inputType="phone"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/saveNumberButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="전화번호 저장"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:id="@+id/currentNumberTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="현재 설정된 번호: 없음"
+        android:textAlignment="center"
+        android:layout_marginBottom="24dp"/>
+
+    <Button
+        android:id="@+id/testSmsButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="테스트 SMS 발송"
+        android:layout_marginBottom="24dp"/>
+
+</LinearLayout>

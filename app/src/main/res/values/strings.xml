@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">BluetoothSMS App</string>
+    <string name="status_connecting">연결 상태: 연결 시도 중...</string>
+    <string name="status_connected">연결 상태: 연결됨</string>
+    <string name="status_disconnected">연결 상태: 연결 안됨</string>
+    <string name="hint_phone_number">전화번호 입력 (-없이 입력)</string>
+    <string name="btn_save_number">전화번호 저장</string>
+    <string name="current_number">현재 설정된 번호: %s</string>
+    <string name="btn_test_sms">테스트 SMS 발송</string>
+    <string name="notification_title">Bluetooth SMS App</string>
+    <string name="notification_text">블루투스 상태: %s</string>
+</resources>
