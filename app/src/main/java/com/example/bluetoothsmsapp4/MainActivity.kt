@@ -23,9 +23,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var testSmsButton: Button
     private lateinit var sharedPreferences: SharedPreferences
 
-    companion object {
-        private const val PERMISSION_REQUEST_CODE = 100
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,7 +30,21 @@ class MainActivity : AppCompatActivity() {
 
         initializeUI()
         loadSavedPhoneNumber()
-        checkPermissions()
+
+        // 권한 체크 후 없는 권한만 요청
+        val permissionsToRequest = checkAndRequestPermissions()
+        if (permissionsToRequest.isEmpty()) {
+            // 이미 모든 권한이 있는 경우
+            startBluetoothService()
+        } else {
+            // 없는 권한 요청
+            ActivityCompat.requestPermissions(
+                this,
+                permissionsToRequest.toTypedArray(),
+                PERMISSION_REQUEST_CODE
+            )
+        }
+
         setupClickListeners()
 
         // 브로드캐스트 리시버 등록
@@ -41,14 +52,43 @@ class MainActivity : AppCompatActivity() {
             addCategory(Intent.CATEGORY_DEFAULT)
         }
 
-        // 모든 안드로이드 버전에서 RECEIVER_NOT_EXPORTED 사용
-        registerReceiver(
-            connectionStatusReceiver,
-            filter,
-            Context.RECEIVER_NOT_EXPORTED
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(connectionStatusReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(connectionStatusReceiver, filter)
+        }
+    }
+
+    private fun checkAndRequestPermissions(): List<String> {
+        val permissions = mutableListOf(
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.BLUETOOTH,
+            Manifest.permission.BLUETOOTH_ADMIN,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
         )
 
-        startBluetoothService()
+        // Android 12 이상에서 블루투스 권한 추가
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.addAll(
+                listOf(
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_SCAN
+                )
+            )
+        }
+
+        // Android 13 이상에서 알림 권한 추가
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        // 백그라운드 위치 권한은 여기서 제외
+
+        // 권한이 없는 것들만 필터링
+        return permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
     }
 
     private fun initializeUI() {
@@ -122,39 +162,85 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             Toast.makeText(this, getString(R.string.sms_permission_required), Toast.LENGTH_SHORT).show()
-            checkPermissions()
+            // 권한 다시 요청
+            requestPermissions()
         }
     }
 
-    private fun checkPermissions() {
-        val permissions = arrayOf(
+    private fun requestPermissions() {
+        val permissions = mutableListOf(
             Manifest.permission.SEND_SMS,
             Manifest.permission.BLUETOOTH,
             Manifest.permission.BLUETOOTH_ADMIN,
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
 
-        // Android 13 이상에서는 알림 권한도 추가
-        val permissionList = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions + Manifest.permission.POST_NOTIFICATIONS
-        } else {
-            permissions
-        }
-
-        val notGrantedPermissions = permissionList.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (notGrantedPermissions.isNotEmpty()) {
-            ActivityCompat.requestPermissions(
-                this,
-                notGrantedPermissions.toTypedArray(),
-                PERMISSION_REQUEST_CODE
+        // Android 12 이상에서 블루투스 권한 추가
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.addAll(
+                listOf(
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_SCAN
+                )
             )
         }
+
+        // Android 10 이상에서 백그라운드 위치 권한 추가
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            permissions.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+
+        // Android 13 이상에서 알림 권한 추가
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        ActivityCompat.requestPermissions(
+            this,
+            permissions.toTypedArray(),
+            PERMISSION_REQUEST_CODE
+        )
+    }
+
+    // 권한 요청 결과 처리
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                // 기본 권한들이 허용됨
+                // Android 10 이상에서 백그라운드 위치 권한 별도 요청
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                        BACKGROUND_LOCATION_PERMISSION_CODE
+                    )
+                } else {
+                    startBluetoothService()
+                }
+            } else {
+                Toast.makeText(this, "앱 사용을 위해서는 모든 권한이 필요합니다", Toast.LENGTH_LONG).show()
+                finish()
+            }
+        } else if (requestCode == BACKGROUND_LOCATION_PERMISSION_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startBluetoothService()
+            } else {
+                Toast.makeText(this, "백그라운드 위치 권한이 필요합니다", Toast.LENGTH_LONG).show()
+                finish()
+            }
+        }
+    }
+
+    companion object {
+        private const val PERMISSION_REQUEST_CODE = 100
+        private const val BACKGROUND_LOCATION_PERMISSION_CODE = 101
     }
 
     private val connectionStatusReceiver = object : BroadcastReceiver() {
