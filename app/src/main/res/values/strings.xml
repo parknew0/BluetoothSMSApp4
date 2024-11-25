@@ -9,4 +9,11 @@
     <string name="btn_test_sms">테스트 SMS 발송</string>
     <string name="notification_title">Bluetooth SMS App</string>
     <string name="notification_text">블루투스 상태: %s</string>
+    <string name="current_number_format">현재 설정된 번호: %1$s</string>
+    <string name="test_message">테스트 메시지입니다.</string>
+    <string name="test_message_sent">테스트 메시지를 발송했습니다</string>
+    <string name="sms_send_fail">SMS 발송 실패: %1$s</string>
+    <string name="sms_permission_required">SMS 권한이 필요합니다</string>
+    <string name="enter_phone_number">전화번호를 입력해주세요</string>
+    <string name="number_saved">전화번호가 저장되었습니다</string>
 </resources>

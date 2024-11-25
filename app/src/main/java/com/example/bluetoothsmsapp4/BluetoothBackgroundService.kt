@@ -10,11 +10,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Build
 import android.os.IBinder
 import android.telephony.SmsManager
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import java.io.InputStream
 import java.util.*
 
@@ -26,6 +30,7 @@ class BluetoothBackgroundService : Service() {
     private val hc06Uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     private lateinit var sharedPreferences: SharedPreferences
     private var savedPhoneNumber: String = ""
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     companion object {
         private const val CHANNEL_ID = "bluetooth_service_channel"
@@ -33,10 +38,6 @@ class BluetoothBackgroundService : Service() {
         @Volatile
         private var currentConnectionStatus = false
 
-        // 현재 상태를 가져오는 함수
-        fun getCurrentStatus(): Boolean {
-            return currentConnectionStatus
-        }
     }
 
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
@@ -45,12 +46,13 @@ class BluetoothBackgroundService : Service() {
         }
     }
 
+
     override fun onCreate() {
         super.onCreate()
         try {
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
             sharedPreferences = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
             savedPhoneNumber = sharedPreferences.getString("phoneNumber", "") ?: ""
-
             sharedPreferences.registerOnSharedPreferenceChangeListener(prefsListener)
 
             val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
@@ -86,11 +88,7 @@ class BluetoothBackgroundService : Service() {
                 this,
                 0,
                 notificationIntent,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                } else {
-                    PendingIntent.FLAG_UPDATE_CURRENT
-                }
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
 
             val notification = NotificationCompat.Builder(this, channelId)
@@ -179,23 +177,58 @@ class BluetoothBackgroundService : Service() {
     private fun sendSMS() {
         if (savedPhoneNumber.isEmpty()) return
 
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+
             try {
-                val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    this.getSystemService(SmsManager::class.java)
-                } else {
-                    SmsManager.getDefault()
-                }
-                smsManager.sendTextMessage(
-                    savedPhoneNumber,
-                    null,
-                    "긴급상황입니다.",
-                    null,
-                    null
-                )
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                    .addOnSuccessListener { location: Location? ->
+                        location?.let {
+                            val message = createEmergencyMessage(it.latitude, it.longitude)
+                            sendSMSWithLocation(message)
+                        } ?: sendSMSWithLocation("긴급 상황입니다. 위치를 확인할 수 없습니다.")
+                    }
+                    .addOnFailureListener {
+                        sendSMSWithLocation("긴급 상황입니다. 위치를 확인할 수 없습니다.")
+                    }
             } catch (e: Exception) {
                 e.printStackTrace()
+                sendSMSWithLocation("긴급 상황입니다. 위치 확인 중 오류가 발생했습니다.")
             }
+        }
+    }
+
+    private fun createEmergencyMessage(latitude: Double, longitude: Double): String {
+        val googleMapsLink = "https://maps.google.com/?q=$latitude,$longitude"
+        return """
+            [긴급 상황 알림]
+            도움이 필요한 상황입니다.
+            
+            현재 위치:
+            위도: $latitude
+            경도: $longitude
+            
+            구글 지도 링크:
+            $googleMapsLink
+            
+            이 메시지는 자동으로 전송되었습니다.
+            가능한 빨리 연락 부탁드립니다.
+        """.trimIndent()
+    }
+
+    private fun sendSMSWithLocation(messageText: String) {
+        try {
+            val smsManager = getSystemService(SmsManager::class.java)
+            val parts = smsManager.divideMessage(messageText)
+            smsManager.sendMultipartTextMessage(
+                savedPhoneNumber,
+                null,
+                parts,
+                null,
+                null
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -221,23 +254,22 @@ class BluetoothBackgroundService : Service() {
     }
 
     private fun updateNotification(connected: Boolean) {
-        // Android 13 이상에서 알림 권한 체크
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ActivityCompat.checkSelfPermission(
                     this,
                     Manifest.permission.POST_NOTIFICATIONS
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                // 권한이 없으면 알림을 보내지 않음
                 return
             }
         }
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text,
-                if (connected) getString(R.string.status_connected)
-                else getString(R.string.status_disconnected)))
+            .setContentTitle("Bluetooth SMS App")
+            .setContentText(
+                if (connected) "블루투스 상태: 연결됨"
+                else "블루투스 상태: 연결 시도 중..."
+            )
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
 
@@ -245,21 +277,15 @@ class BluetoothBackgroundService : Service() {
         notificationManager.notify(1, notification)
     }
 
-    private fun sendBroadcast(connected: Boolean) {
-        val intent = Intent("BLUETOOTH_CONNECTION_STATUS")
-        intent.setPackage(packageName)  // 명시적 인텐트로 변경
-        intent.putExtra("isConnected", connected)
-        sendBroadcast(intent)
-    }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        try {
-            isConnected = false
-            sharedPreferences.unregisterOnSharedPreferenceChangeListener(prefsListener)
-            bluetoothSocket?.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+override fun onDestroy() {
+    super.onDestroy()
+    try {
+        isConnected = false
+        sharedPreferences.unregisterOnSharedPreferenceChangeListener(prefsListener)
+        bluetoothSocket?.close()
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
+}
 }

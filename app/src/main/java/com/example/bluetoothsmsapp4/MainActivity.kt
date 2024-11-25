@@ -36,19 +36,17 @@ class MainActivity : AppCompatActivity() {
         checkPermissions()
         setupClickListeners()
 
-        // Android 13 이상에서는 exported 플래그 설정
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(
-                connectionStatusReceiver,
-                IntentFilter("BLUETOOTH_CONNECTION_STATUS"),
-                Context.RECEIVER_NOT_EXPORTED
-            )
-        } else {
-            registerReceiver(
-                connectionStatusReceiver,
-                IntentFilter("BLUETOOTH_CONNECTION_STATUS")
-            )
+        // 브로드캐스트 리시버 등록
+        val filter = IntentFilter("BLUETOOTH_CONNECTION_STATUS").apply {
+            addCategory(Intent.CATEGORY_DEFAULT)
         }
+
+        // 모든 안드로이드 버전에서 RECEIVER_NOT_EXPORTED 사용
+        registerReceiver(
+            connectionStatusReceiver,
+            filter,
+            Context.RECEIVER_NOT_EXPORTED
+        )
 
         startBluetoothService()
     }
@@ -65,7 +63,7 @@ class MainActivity : AppCompatActivity() {
     private fun loadSavedPhoneNumber() {
         val savedNumber = sharedPreferences.getString("phoneNumber", "")
         if (!savedNumber.isNullOrEmpty()) {
-            currentNumberTextView.text = "현재 설정된 번호: $savedNumber"
+            currentNumberTextView.setText(getString(R.string.current_number_format, savedNumber))
             phoneNumberEditText.setText(savedNumber)
         }
     }
@@ -83,7 +81,7 @@ class MainActivity : AppCompatActivity() {
         saveNumberButton.setOnClickListener {
             val number = phoneNumberEditText.text.toString()
             if(number.isEmpty()) {
-                Toast.makeText(this, "전화번호를 입력해주세요", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.enter_phone_number), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
@@ -92,8 +90,8 @@ class MainActivity : AppCompatActivity() {
                 apply()
             }
 
-            currentNumberTextView.text = "현재 설정된 번호: $number"
-            Toast.makeText(this, "전화번호가 저장되었습니다", Toast.LENGTH_SHORT).show()
+            currentNumberTextView.setText(getString(R.string.current_number_format, number))
+            Toast.makeText(this, getString(R.string.number_saved), Toast.LENGTH_SHORT).show()
         }
 
         testSmsButton.setOnClickListener {
@@ -110,24 +108,20 @@ class MainActivity : AppCompatActivity() {
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
             try {
-                val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    this.getSystemService(SmsManager::class.java)
-                } else {
-                    SmsManager.getDefault()
-                }
+                val smsManager = getSystemService(SmsManager::class.java)
                 smsManager.sendTextMessage(
                     phoneNumber,
                     null,
-                    "테스트 메시지입니다.",
+                    getString(R.string.test_message),
                     null,
                     null
                 )
-                Toast.makeText(this, "테스트 메시지를 발송했습니다", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.test_message_sent), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
-                Toast.makeText(this, "SMS 발송 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.sms_send_fail, e.message), Toast.LENGTH_SHORT).show()
             }
         } else {
-            Toast.makeText(this, "SMS 권한이 필요합니다", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.sms_permission_required), Toast.LENGTH_SHORT).show()
             checkPermissions()
         }
     }
@@ -172,13 +166,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // setText 경고를 해결하기 위해 updateConnectionStatus 수정
     private fun updateConnectionStatus(isConnected: Boolean) {
         runOnUiThread {
-            statusTextView.text = if (isConnected) {
-                "연결 상태: 연결됨"
-            } else {
-                "연결 상태: 연결 시도 중..."
-            }
+            statusTextView.setText(
+                if (isConnected) R.string.status_connected
+                else R.string.status_disconnected
+            )
         }
     }
 
